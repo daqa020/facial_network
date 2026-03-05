@@ -15,6 +15,8 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
+
 _APP_DIR = Path(__file__).resolve().parent
 if str(_APP_DIR) not in sys.path:
     sys.path.insert(0, str(_APP_DIR))
@@ -29,8 +31,11 @@ from image_utils import (
     load_image,
     save_image,
 )
+from pose_detector import (NoPoseDetectedError, PoseModelNotFoundError,
+                            detect_pose_landmarks, enrich_body_points,
+                            scale_pose_landmarks)
 from renderer import RenderConfig, render_mesh
-from triangulation import compute_triangulation, extract_unique_edges
+from triangulation import compute_triangulation, extract_unique_edges, merge_edges
 
 
 def _parse_color(value: str):
@@ -84,6 +89,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Use 468 landmarks instead of 478.")
     parser.add_argument("--skip-gpu-check", action="store_true", default=False,
                         help="Skip the hardware detection report.")
+    parser.add_argument("--body", action="store_true", default=False,
+                        help="Enable full body mesh (face Delaunay + body skeleton).")
     return parser
 
 
@@ -121,15 +128,49 @@ def run(args: argparse.Namespace) -> None:
     elapsed_ms = (time.perf_counter() - t0) * 1000
     print(f"       Found {len(landmarks)} landmarks in {elapsed_ms:.0f} ms.")
 
-    points = scale_landmarks(landmarks, orig_w, orig_h)
+    face_points = scale_landmarks(landmarks, orig_w, orig_h)
+    face_count = len(landmarks)
 
-    print("[4/5] Computing Delaunay triangulation \u2026")
-    simplices = compute_triangulation(points)
-    edges = extract_unique_edges(simplices)
+    # ── Optional body pose detection ──
+    body_pts = None
+    all_points = face_points
+
+    if args.body:
+        print("[3b/5] Detecting body pose \u2026")
+        try:
+            pose_lm = detect_pose_landmarks(
+                small_rgb,
+                min_detection_confidence=args.min_confidence,
+            )
+            raw_body = scale_pose_landmarks(pose_lm, orig_w, orig_h)
+            body_pts = enrich_body_points(raw_body)
+            all_points = np.vstack([face_points, body_pts])
+            print(f"       Found {len(pose_lm)} body landmarks, "
+                  f"enriched to {len(body_pts)} body points.")
+        except NoPoseDetectedError:
+            print("       No body detected \u2013 showing face only.")
+        except PoseModelNotFoundError as exc:
+            print(f"       \u26a0 {exc}")
+
+    points = all_points
+
+    print("[4/5] Computing triangulation \u2026")
+    simplices = compute_triangulation(face_points)
+    face_edges = extract_unique_edges(simplices)
+
+    body_edges = set()
+    if body_pts is not None and len(body_pts) >= 3:
+        body_simplices = compute_triangulation(body_pts)
+        body_edges_raw = extract_unique_edges(body_simplices)
+        body_edges = {(a + face_count, b + face_count)
+                      for a, b in body_edges_raw}
+
+    edges = merge_edges(face_edges, body_edges)
     print(f"       {len(simplices)} triangles, {len(edges)} unique edges.")
 
     print("[5/5] Rendering mesh visualisation \u2026")
     config = RenderConfig(
+        canvas_color=(255, 255, 255),
         line_color=args.line_color,
         line_thickness=args.line_thickness,
         draw_nodes=not args.no_nodes,
@@ -153,10 +194,11 @@ def main() -> None:
 
     try:
         run(args)
-    except NoFaceDetectedError as exc:
+    except (NoFaceDetectedError, NoPoseDetectedError) as exc:
         print(f"\n\u2717 {exc}", file=sys.stderr)
         sys.exit(1)
-    except (FileNotFoundError, ImageLoadError, ModelNotFoundError) as exc:
+    except (FileNotFoundError, ImageLoadError, ModelNotFoundError,
+            PoseModelNotFoundError) as exc:
         print(f"\n\u2717 {exc}", file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:

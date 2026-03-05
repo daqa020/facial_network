@@ -21,11 +21,18 @@ _HERE = Path(__file__).resolve().parent
 _APP_DIR = _HERE.parent / "app"
 _REQ_FILE = _HERE.parent / "requirements.txt"
 
-MODEL_URL = (
+FACE_MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/"
     "face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
 )
-MODEL_DEST = _APP_DIR / "face_landmarker.task"
+FACE_MODEL_DEST = _APP_DIR / "face_landmarker.task"
+
+POSE_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/"
+    "pose_landmarker/pose_landmarker_heavy/float16/latest/"
+    "pose_landmarker_heavy.task"
+)
+POSE_MODEL_DEST = _APP_DIR / "pose_landmarker_heavy.task"
 
 
 def _check_python_version():
@@ -64,21 +71,27 @@ def _validate_imports():
     return all_ok
 
 
-def _download_model():
-    if MODEL_DEST.exists() and MODEL_DEST.stat().st_size > 1_000_000:
-        size_mb = MODEL_DEST.stat().st_size / 1_048_576
-        print(f"\n\u2713  Model already present ({size_mb:.1f} MB)")
+def _download_model(url, dest, label):
+    if dest.exists() and dest.stat().st_size > 500_000:
+        size_mb = dest.stat().st_size / 1_048_576
+        print(f"\n\u2713  {label} already present ({size_mb:.1f} MB)")
         return True
-    print(f"\nDownloading model …\n  {MODEL_URL}")
+    print(f"\nDownloading {label} \u2026\n  {url}")
     try:
-        os.makedirs(MODEL_DEST.parent, exist_ok=True)
-        urllib.request.urlretrieve(MODEL_URL, str(MODEL_DEST))
-        size_mb = MODEL_DEST.stat().st_size / 1_048_576
-        print(f"\u2713  Downloaded model ({size_mb:.1f} MB)")
+        os.makedirs(dest.parent, exist_ok=True)
+        urllib.request.urlretrieve(url, str(dest))
+        size_mb = dest.stat().st_size / 1_048_576
+        print(f"\u2713  {label} downloaded ({size_mb:.1f} MB)")
         return True
     except Exception as exc:
-        print(f"\u2717  Download failed: {exc}")
+        print(f"\u2717  {label} download failed: {exc}")
         return False
+
+
+def _download_models():
+    ok = _download_model(FACE_MODEL_URL, FACE_MODEL_DEST, "Face model")
+    ok = _download_model(POSE_MODEL_URL, POSE_MODEL_DEST, "Pose model") and ok
+    return ok
 
 
 def _run_hardware_report():
@@ -99,7 +112,7 @@ def main():
     _check_python_version()
     ok = _install_requirements()
     ok = _validate_imports() and ok
-    ok = _download_model() and ok
+    ok = _download_models() and ok
     _run_hardware_report()
 
     print("\n" + "=" * 50)

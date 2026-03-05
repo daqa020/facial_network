@@ -19,11 +19,18 @@ _HERE = Path(__file__).resolve().parent
 _APP_DIR = _HERE.parent / "app"
 _REQ_FILE = _HERE.parent / "requirements.txt"
 
-MODEL_URL = (
+FACE_MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/"
     "face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
 )
-MODEL_DEST = _APP_DIR / "face_landmarker.task"
+FACE_MODEL_DEST = _APP_DIR / "face_landmarker.task"
+
+POSE_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/"
+    "pose_landmarker/pose_landmarker_heavy/float16/latest/"
+    "pose_landmarker_heavy.task"
+)
+POSE_MODEL_DEST = _APP_DIR / "pose_landmarker_heavy.task"
 
 
 class InstallerGUI:
@@ -126,7 +133,7 @@ class InstallerGUI:
         self._set_step(2, "Validating imports …")
         ok = ok and self._step_validate()
 
-        self._set_step(3, "Downloading model …")
+        self._set_step(3, "Downloading models …")
         ok = ok and self._step_download_model()
 
         self._set_step(4, "Hardware report …")
@@ -187,23 +194,29 @@ class InstallerGUI:
                 all_ok = False
         return all_ok
 
-    def _step_download_model(self) -> bool:
-        if MODEL_DEST.exists() and MODEL_DEST.stat().st_size > 1_000_000:
-            size_mb = MODEL_DEST.stat().st_size / 1_048_576
-            self._append(
-                f"\u2713  Model already exists ({size_mb:.1f} MB)")
+    def _download_one_model(self, url, dest, label) -> bool:
+        if dest.exists() and dest.stat().st_size > 500_000:
+            size_mb = dest.stat().st_size / 1_048_576
+            self._append(f"\u2713  {label} already exists ({size_mb:.1f} MB)")
             return True
 
-        self._append(f"Downloading model from:\n  {MODEL_URL}")
+        self._append(f"Downloading {label} from:\n  {url}")
         try:
-            os.makedirs(MODEL_DEST.parent, exist_ok=True)
-            urllib.request.urlretrieve(MODEL_URL, str(MODEL_DEST))
-            size_mb = MODEL_DEST.stat().st_size / 1_048_576
-            self._append(f"\u2713  Model downloaded ({size_mb:.1f} MB)")
+            os.makedirs(dest.parent, exist_ok=True)
+            urllib.request.urlretrieve(url, str(dest))
+            size_mb = dest.stat().st_size / 1_048_576
+            self._append(f"\u2713  {label} downloaded ({size_mb:.1f} MB)")
             return True
         except Exception as exc:
-            self._append(f"\u2717  Download failed: {exc}")
+            self._append(f"\u2717  {label} download failed: {exc}")
             return False
+
+    def _step_download_model(self) -> bool:
+        ok = self._download_one_model(
+            FACE_MODEL_URL, FACE_MODEL_DEST, "Face model")
+        ok = self._download_one_model(
+            POSE_MODEL_URL, POSE_MODEL_DEST, "Pose model (heavy)") and ok
+        return ok
 
     def _step_hardware(self):
         self._append("\n--- Hardware Report ---")

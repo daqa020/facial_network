@@ -2,7 +2,8 @@
 triangulation.py – Delaunay triangulation on facial landmarks.
 
 Takes an array of 2-D landmark points and produces a triangle mesh
-suitable for network-style visualisation.
+suitable for network-style visualisation.  Also provides helpers to
+merge face Delaunay edges with body skeleton edges.
 """
 
 from typing import Set, Tuple
@@ -61,3 +62,15 @@ def extract_unique_edges(
         edges.add((min(i, k), max(i, k)))
 
     return edges
+
+
+def merge_edges(
+    *edge_sets: Set[Tuple[int, int]],
+) -> Set[Tuple[int, int]]:
+    """
+    Merge multiple edge sets into one, preserving the sorted-tuple format.
+    """
+    merged: Set[Tuple[int, int]] = set()
+    for s in edge_sets:
+        merged.update(s)
+    return merged
