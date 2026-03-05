@@ -155,7 +155,7 @@ class FaceMeshGUI:
 
         # Defaults
         self.default_line_color = (50, 50, 50)   # BGR dark grey
-        self.default_thickness = None             # auto
+        self.default_thickness = 1                # fixed thin default
         self.overlay_mode = tk.BooleanVar(value=False)
         self.show_nodes = tk.BooleanVar(value=True)
 
@@ -261,16 +261,6 @@ class FaceMeshGUI:
             command=self._pick_default_color)
         self._def_color_btn.pack(anchor="w", padx=10, pady=(2, 4))
 
-        ttk.Label(self.sidebar, text="Default Thickness:",
-                  style="Side.TLabel").pack(anchor="w", padx=10, pady=(4, 0))
-        self._def_thick_var = tk.IntVar(value=1)
-        self._def_thick_scale = tk.Scale(
-            self.sidebar, from_=1, to=10, orient="horizontal",
-            variable=self._def_thick_var, length=170,
-            bg=SURFACE, fg=FG, troughcolor=BG, highlightthickness=0,
-            command=lambda _: self._on_default_thickness_changed())
-        self._def_thick_scale.pack(anchor="w", padx=10, pady=(0, 6))
-
         # Separator between defaults and edge inspector
         ttk.Separator(self.sidebar, orient="horizontal").pack(
             fill="x", padx=10, pady=6)
@@ -351,9 +341,7 @@ class FaceMeshGUI:
             self._def_color_btn.configure(bg=result[1])
             self._redraw()
 
-    def _on_default_thickness_changed(self):
-        self.default_thickness = self._def_thick_var.get()
-        self._redraw()
+
 
     # ── Image Loading ────────────────────────────────────────────────────
 
